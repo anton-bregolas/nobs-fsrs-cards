@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.3](https://github.com/bregolas/nobscards/compare/v0.1.2...v0.1.3) (2026-07-24)
+
+### ✨ Features
+
+* add text-to-speech interface to cards ([0aa90e9](https://github.com/bregolas/nobscards/commit/0aa90e923bd2da503f2844e1cfc4e7c246e2a682))
+* add TTS UI to cards, group with translation UI ([0aa90e9](https://github.com/bregolas/nobscards/commit/0aa90e923bd2da503f2844e1cfc4e7c246e2a682))
+* add Web Speech API support (default TTS) ([0aa90e9](https://github.com/bregolas/nobscards/commit/0aa90e923bd2da503f2844e1cfc4e7c246e2a682))
+* add Google Cloud API support (optional TTS) ([0aa90e9](https://github.com/bregolas/nobscards/commit/0aa90e923bd2da503f2844e1cfc4e7c246e2a682))
+* add Azure API support (optional TTS) ([0aa90e9](https://github.com/bregolas/nobscards/commit/0aa90e923bd2da503f2844e1cfc4e7c246e2a682))
+* a11y: add accessible popover names & aria-live announcements ([0aa90e9](https://github.com/bregolas/nobscards/commit/0aa90e923bd2da503f2844e1cfc4e7c246e2a682))
+
+### 🧪 Tests
+
+* add TTS test suite ([0aa90e9](https://github.com/bregolas/nobscards/commit/0aa90e923bd2da503f2844e1cfc4e7c246e2a682))
+
+### ♻️ Chores
+
+* **release:** 0.1.3 ([3953f31](https://github.com/bregolas/nobscards/commit/3953f31898dc967a29e30b8bd093c29cd098215e))
+
 ## [0.1.2](https://github.com/bregolas/nobscards/compare/v0.1.1...v0.1.2) (2026-07-22)
 
 ### ✨ Features
