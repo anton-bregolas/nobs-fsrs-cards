@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import type { AppSettings, ExportedData, Word, DictMeta } from '../types'
 import { useTranslation, APP_LANGUAGES, timeUnitKey } from '../i18n'
+import { validateGoogleKey, validateAzureKey } from '../utils/tts'
 
 interface SettingsProps {
   settings: AppSettings
@@ -35,6 +36,9 @@ export default function Settings({
     typeof settings.customIntervalGood === 'number' ? settings.customIntervalGood : 10,
   )
   const { t } = useTranslation()
+  const [showTtsPopover, setShowTtsPopover] = useState(false)
+  const [ttsKeyInput, setTtsKeyInput] = useState('')
+  const [ttsMsg, setTtsMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [importError, setImportError] = useState('')
   const [importSuccess, setImportSuccess] = useState('')
   const [pendingDict, setPendingDict] = useState<{ words: Word[]; meta?: DictMeta } | null>(null)
@@ -46,6 +50,7 @@ export default function Settings({
   const dictRef = useRef<HTMLInputElement>(null)
   const errorPopover = useRef<HTMLDivElement>(null)
   const dictConfirmPopover = useRef<HTMLDivElement>(null)
+  const ttsResetConfirmRef = useRef<HTMLDivElement>(null)
   const importSuccessPopover = useRef<HTMLDivElement>(null)
   const internalSaveRef = useRef<HTMLButtonElement>(null)
   const saveRef = saveRefProp ?? internalSaveRef
@@ -197,6 +202,56 @@ export default function Settings({
       setPendingDictFileName('')
     }
     dictConfirmPopover.current?.hidePopover()
+  }
+
+  useEffect(() => {
+    if (!ttsMsg) return
+    const timer = setTimeout(() => setTtsMsg(null), 3000)
+    return () => clearTimeout(timer)
+  }, [ttsMsg])
+
+  const openTtsPopover = () => {
+    setTtsKeyInput(settings.ttsKey)
+    setTtsMsg(null)
+    setShowTtsPopover(true)
+  }
+
+  const handleTtsGoogle = async () => {
+    const ok = await validateGoogleKey(ttsKeyInput)
+    if (ok) {
+      onUpdate({ ...settings, ttsKey: ttsKeyInput, ttsService: 'google' })
+      setTtsMsg({ ok: true, text: t('settings.ttsKeySuccess') })
+    } else {
+      setTtsMsg({ ok: false, text: t('settings.ttsKeyError') })
+    }
+  }
+
+  const handleTtsAzure = async () => {
+    const ok = await validateAzureKey(ttsKeyInput)
+    if (ok) {
+      onUpdate({ ...settings, ttsKey: ttsKeyInput, ttsService: 'azure' })
+      setTtsMsg({ ok: true, text: t('settings.ttsKeySuccess') })
+    } else {
+      setTtsMsg({ ok: false, text: t('settings.ttsKeyError') })
+    }
+  }
+
+  const handleTtsReset = () => {
+    showPopover(ttsResetConfirmRef.current)
+  }
+
+  const confirmTtsReset = () => {
+    onUpdate({ ...settings, ttsKey: '', ttsService: 'web' })
+    setTtsKeyInput('')
+    setTtsMsg(null)
+    setShowTtsPopover(false)
+    ttsResetConfirmRef.current?.hidePopover()
+  }
+
+  const handleTtsClose = () => {
+    setShowTtsPopover(false)
+    setTtsKeyInput('')
+    setTtsMsg(null)
   }
 
   return (
@@ -529,7 +584,89 @@ export default function Settings({
         </div>
       </div>
 
-      <label className="flex items-start gap-3 cursor-pointer group pt-2">
+      <label className="flex items-start gap-3 cursor-pointer group">
+        <input
+          type="checkbox"
+          checked={settings.enableTTS}
+          onChange={() =>
+            onUpdate({
+              ...settings,
+              enableTTS: !settings.enableTTS,
+            })
+          }
+          className="mt-0.5"
+        />
+        <span className="text-sm text-text leading-relaxed group-hover:text-accent group-focus-visible:text-accent transition-colors duration-150">
+          {t('settings.enableTTS')}
+        </span>
+      </label>
+
+      {settings.enableTTS && (
+        <div className="ml-8 space-y-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <button
+              onClick={openTtsPopover}
+              aria-expanded={showTtsPopover}
+              aria-controls="tts-key-popover"
+              className="px-4 py-2 rounded-lg border border-text/30 text-text text-sm transition-all duration-200 hover:border-accent hover:text-accent focus-visible:border-accent focus-visible:text-accent cursor-pointer whitespace-nowrap"
+            >
+              {settings.ttsKey ? t('settings.changeTtsKey') : t('settings.addTtsKey')}
+            </button>
+            <span className="text-sm text-text opacity-60">
+              {settings.ttsService === 'web' && t('settings.ttsWebDefault')}
+              {settings.ttsService === 'google' && <span className="text-accent">{t('settings.ttsGoogle')}</span>}
+              {settings.ttsService === 'azure' && <span className="text-accent">{t('settings.ttsAzure')}</span>}
+            </span>
+          </div>
+
+          {showTtsPopover && (
+            <div id="tts-key-popover" role="region" aria-label={t('settings.ttsKeyInput')} className="border border-text/30 rounded-lg p-4 space-y-3 bg-bg">
+              <input
+                type="text"
+                value={ttsKeyInput}
+                onChange={(e) => setTtsKeyInput(e.target.value)}
+                placeholder={t('settings.ttsKeyInput')}
+                className="w-full px-3 py-2 rounded-lg border border-text/30 bg-transparent text-text text-sm focus:outline-none focus:border-accent"
+              />
+              <div className="flex flex-wrap gap-2 justify-center">
+                <button
+                  disabled={!ttsKeyInput}
+                  onClick={handleTtsGoogle}
+                  className="px-3 py-1.5 rounded-lg border border-text/30 text-text text-sm transition-all duration-200 hover:border-accent hover:text-accent focus-visible:border-accent focus-visible:text-accent cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  {t('settings.ttsKeyGoogle')}
+                </button>
+                <button
+                  disabled={!ttsKeyInput}
+                  onClick={handleTtsAzure}
+                  className="px-3 py-1.5 rounded-lg border border-text/30 text-text text-sm transition-all duration-200 hover:border-accent hover:text-accent focus-visible:border-accent focus-visible:text-accent cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  {t('settings.ttsKeyAzure')}
+                </button>
+                <button
+                  onClick={handleTtsReset}
+                  className="px-3 py-1.5 rounded-lg border border-text/30 text-text text-sm transition-all duration-200 hover:border-caret hover:text-caret focus-visible:border-caret focus-visible:text-caret cursor-pointer"
+                >
+                  {t('settings.ttsKeyReset')}
+                </button>
+                <button
+                  onClick={handleTtsClose}
+                  className="px-3 py-1.5 rounded-lg border border-text/30 text-text text-sm transition-all duration-200 hover:border-accent hover:text-accent focus-visible:border-accent focus-visible:text-accent cursor-pointer"
+                >
+                  {t('settings.ttsKeyClose')}
+                </button>
+              </div>
+              {ttsMsg && (
+                <p role="status" className={`text-sm text-center ${ttsMsg.ok ? 'text-accent' : 'text-red-500'}`}>
+                  {ttsMsg.text}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      <label className="flex items-start gap-3 cursor-pointer group">
         <input
           type="checkbox"
           checked={settings.autoAddRankedToFavorites}
@@ -667,6 +804,8 @@ export default function Settings({
       <div
         ref={errorPopover}
         popover="manual"
+        role="alertdialog"
+        aria-label={t('error.somethingWrong')}
         className="rounded-xl bg-subhead-alt border border-text/20 outline outline-1 outline-error p-6 text-center fixed inset-0 m-auto w-80 h-fit"
       >
         <p className="text-text text-sm mb-4">{importError}</p>
@@ -682,6 +821,8 @@ export default function Settings({
       <div
         ref={dictConfirmPopover}
         popover="manual"
+        role="alertdialog"
+        aria-label={t('dict.changeTitle')}
         className="rounded-xl bg-subhead-alt border border-text/20 outline outline-1 outline-subhead p-6 text-center fixed inset-0 m-auto w-80 h-fit"
       >
         <p className="text-text text-sm mb-4">{t('dict.changeTitle')}<br/>{t('dict.changeDesc')}</p>
@@ -711,6 +852,8 @@ export default function Settings({
         <div
           id="reset-confirm"
           popover="auto"
+          role="alertdialog"
+          aria-label={t('dict.resetTitle')}
           className="rounded-xl bg-subhead-alt border border-text/20 outline outline-1 outline-subhead p-6 text-center fixed inset-0 m-auto w-80 h-fit"
         >
           <p className="text-text text-sm mb-4">{t('dict.resetTitle')}<br/>{t('dict.resetDesc')}</p>
@@ -734,6 +877,31 @@ export default function Settings({
         </div>
       </div>
 
+      {/* TTS reset confirm popover */}
+      <div
+        ref={ttsResetConfirmRef}
+        popover="manual"
+        role="alertdialog"
+        aria-label={t('settings.ttsKeyResetConfirm')}
+        className="rounded-xl bg-subhead-alt border border-text/20 outline outline-1 outline-subhead p-6 text-center fixed inset-0 m-auto w-80 h-fit"
+      >
+        <p className="text-text text-sm mb-4">{t('settings.ttsKeyResetConfirm')}</p>
+        <div className="flex gap-3 justify-center">
+          <button
+            onClick={confirmTtsReset}
+            className="px-4 py-1.5 rounded-lg bg-text/10 text-text text-sm transition-all duration-200 hover:bg-subhead hover:text-bg focus-visible:bg-subhead focus-visible:text-bg cursor-pointer"
+          >
+            {t('settings.ttsKeyResetConfirmOk')}
+          </button>
+          <button
+            onClick={() => ttsResetConfirmRef.current?.hidePopover()}
+            className="px-4 py-1.5 rounded-lg bg-text/10 text-text text-sm transition-all duration-200 hover:bg-text/20 focus-visible:bg-text/20 cursor-pointer"
+          >
+            {t('dict.changeCancel')}
+          </button>
+        </div>
+      </div>
+
       <div aria-live="polite" className="text-center">
         <span className="text-sm text-text/40">
           {dictFileName.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('-')} loaded
@@ -744,6 +912,8 @@ export default function Settings({
       <div
         ref={importSuccessPopover}
         popover="manual"
+        role="alertdialog"
+        aria-label={t('error.importSuccess')}
         className="rounded-xl bg-subhead-alt border border-text/20 outline outline-1 outline-accent p-6 text-center fixed inset-0 m-auto w-80 h-fit"
       >
         <p className="text-text text-sm mb-4">{importSuccess}</p>

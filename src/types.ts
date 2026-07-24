@@ -13,6 +13,8 @@ export interface Word {
 
 export type View = 'home' | 'favorites' | 'learned' | 'settings'
 
+export type TTSService = 'web' | 'google' | 'azure'
+
 export interface StoredWord {
   id: number
   addedAt: string
@@ -40,6 +42,9 @@ export interface AppSettings {
   phrasebookThreshold: number
   useAltInputLang: boolean
   useRefLangForLabels: boolean
+  enableTTS: boolean
+  ttsService: TTSService
+  ttsKey: string
   sortFavoritesBy: string[]
   sortLearnedBy: string[]
   language: string

@@ -21,6 +21,9 @@ function renderInputArea(overrides = {}) {
       phrasebookMode: false,
       useAltInputLang: false,
       useRefLangForLabels: false,
+      enableTTS: false,
+      ttsService: 'web' as const,
+      ttsKey: '',
       autoFlipOnWrongAttempts: false as const,
       autoAddAnsweredToLearned: false,
       autoAdvanceOnLearn: false,
@@ -104,7 +107,7 @@ describe('InputArea', () => {
     rerender(
       <I18nProvider lang="en">
         <InputArea word={word} dictMeta={dictMeta} settings={{
-          phrasebookMode: false, useAltInputLang: false, useRefLangForLabels: false,
+          phrasebookMode: false, useAltInputLang: false, useRefLangForLabels: false, enableTTS: false, ttsService: 'web' as const, ttsKey: '',
           autoFlipOnWrongAttempts: false, autoAddAnsweredToLearned: false, autoAdvanceOnLearn: false,
           autoAddRankedToFavorites: false, phrasebookThreshold: 75,
           customIntervalAgain: false, customIntervalGood: false,
@@ -123,7 +126,7 @@ describe('InputArea', () => {
       onCorrect,
       wrongAttempts: 2,
       settings: {
-        phrasebookMode: false, useAltInputLang: false, useRefLangForLabels: false,
+        phrasebookMode: false, useAltInputLang: false, useRefLangForLabels: false, enableTTS: false, ttsService: 'web' as const, ttsKey: '',
         autoFlipOnWrongAttempts: 3, autoAddAnsweredToLearned: false, autoAdvanceOnLearn: false,
         autoAddRankedToFavorites: false, phrasebookThreshold: 75,
         customIntervalAgain: false, customIntervalGood: false,

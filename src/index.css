@@ -230,6 +230,34 @@ input[name="language"] {
   backface-visibility: hidden;
 }
 
+[data-card-ui="hovercontainer"] {
+  position: absolute;
+  top: -1rem;
+  left: 50%;
+  transform: translate(-50%, 50%);
+  display: flex;
+  justify-content: space-evenly;
+  align-items: center;
+  width: 100%;
+}
+
+[data-card-ui="hoverbtn"] {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  outline: 0.12rem solid var(--color-text);
+  outline-offset: -0.4rem !important;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  cursor: pointer
+}
+
+[data-card-ui="hoverbtn"]:is(:focus, :focus-visible) {
+  color: var(--color-accent);
+  outline-color: var(--color-accent);
+}
+
 .animate-text-switch {
   animation: textSwitch 0.65s ease-in-out;
 }
@@ -279,7 +307,6 @@ input[name="language"] {
 [data-srs="easy"]:has(:checked) {
   --srs-bg-color: var(--color-accent);
 }
-
 
 @media (width >= 40em) {
   html {

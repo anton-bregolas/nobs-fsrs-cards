@@ -56,6 +56,9 @@ function settings(overrides: Partial<AppSettings> = {}): AppSettings {
     phrasebookThreshold: 80,
     useAltInputLang: false,
     useRefLangForLabels: false,
+    enableTTS: false,
+    ttsService: 'web',
+    ttsKey: '',
     language: 'en',
     autoFlipOnWrongAttempts: false,
     autoAdvanceOnLearn: false,
@@ -328,16 +331,16 @@ describe('WordCard', () => {
         isFlipped: true,
         settings: settings({ phrasebookMode: true }),
       })
-      expect(
-        screen.queryByLabelText('Show reference translation'),
-      ).not.toBeInTheDocument()
+      const btn = screen.getByLabelText('Show reference translation')
+      expect(btn.classList.contains('opacity-0')).toBe(true)
+      expect(btn.classList.contains('pointer-events-none')).toBe(true)
     })
 
     it('hidden in non-PB words mode (subheadMode=both)', () => {
       renderCard({ isFlipped: true })
-      expect(
-        screen.queryByLabelText('Show reference translation'),
-      ).not.toBeInTheDocument()
+      const btn = screen.getByLabelText('Show reference translation')
+      expect(btn.classList.contains('opacity-0')).toBe(true)
+      expect(btn.classList.contains('pointer-events-none')).toBe(true)
     })
 
     it('swaps displayed text on click', () => {
@@ -348,6 +351,33 @@ describe('WordCard', () => {
       fireEvent.click(btn)
       // after click: showAltOnBack = true, toggleAlt now visible
       expect(screen.getByText('яблочко')).toBeInTheDocument()
+    })
+  })
+
+  // ======================== TTS (TEXT-TO-SPEECH) ========================
+
+  describe('TTS buttons', () => {
+    it('renders question play button when TTS enabled', () => {
+      renderCard({ settings: settings({ enableTTS: true }) })
+      expect(screen.getByLabelText('Read the question aloud')).toBeInTheDocument()
+    })
+
+    it('renders answer play button when flipped and TTS enabled', () => {
+      renderCard({ isFlipped: true, settings: settings({ enableTTS: true }) })
+      expect(screen.getByLabelText('Read the answer aloud')).toBeInTheDocument()
+    })
+
+    it('does not render TTS buttons when TTS disabled', () => {
+      renderCard({ settings: settings({ enableTTS: false }) })
+      expect(screen.queryByLabelText('Read the question aloud')).not.toBeInTheDocument()
+      expect(screen.queryByLabelText('Read the answer aloud')).not.toBeInTheDocument()
+    })
+
+    it('hides answer button when not flipped', () => {
+      renderCard({ settings: settings({ enableTTS: true }) })
+      const btn = screen.getByLabelText('Read the answer aloud')
+      expect(btn.classList.contains('opacity-0')).toBe(true)
+      expect(btn.classList.contains('pointer-events-none')).toBe(true)
     })
   })
 

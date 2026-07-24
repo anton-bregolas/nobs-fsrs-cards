@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from 'vitest'
-import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { I18nProvider } from '../../i18n'
 import Settings from '../../components/Settings'
 import type { AppSettings, ExportedData, DictMeta } from '../../types'
@@ -12,6 +12,9 @@ const baseSettings: AppSettings = {
   phrasebookThreshold: 75,
   useAltInputLang: false,
   useRefLangForLabels: false,
+  enableTTS: false,
+  ttsService: 'web',
+  ttsKey: '',
   sortFavoritesBy: ['date_desc'],
   sortLearnedBy: ['date_desc'],
   language: 'en',
@@ -286,6 +289,62 @@ describe('Settings', () => {
       expect(onUpdate).toHaveBeenCalledWith(
         expect.objectContaining({ autoFlipOnWrongAttempts: 3 }),
       )
+    })
+  })
+
+  describe('TTS settings', () => {
+    it('enable TTS checkbox calls onUpdate', () => {
+      const onUpdate = vi.fn()
+      renderSettings({ onUpdate, settings: { ...baseSettings, enableTTS: false } })
+      fireEvent.click(screen.getByText(/Enable text-to-speech/))
+      expect(onUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ enableTTS: true }),
+      )
+    })
+
+    it('shows TTS key popover when clicking add key button', () => {
+      renderSettings({ settings: { ...baseSettings, enableTTS: true } })
+      fireEvent.click(screen.getByText('Add TTS service key'))
+      expect(screen.getByPlaceholderText('Paste your API key...')).toBeInTheDocument()
+    })
+
+    it('shows change TTS key button when key exists', () => {
+      renderSettings({
+        settings: { ...baseSettings, enableTTS: true, ttsKey: 'existing-key' },
+      })
+      expect(screen.getByText('Change TTS service key')).toBeInTheDocument()
+    })
+
+    it('closes TTS key popover on close button', () => {
+      renderSettings({ settings: { ...baseSettings, enableTTS: true } })
+      fireEvent.click(screen.getByText('Add TTS service key'))
+      fireEvent.click(screen.getByText('Close'))
+      expect(screen.queryByPlaceholderText('Paste your API key...')).not.toBeInTheDocument()
+    })
+
+    it('disables Google/Azure buttons when input is empty', () => {
+      renderSettings({ settings: { ...baseSettings, enableTTS: true } })
+      fireEvent.click(screen.getByText('Add TTS service key'))
+      expect(screen.getByText('Set Google TTS Key')).toBeDisabled()
+      expect(screen.getByText('Set Azure TTS Key')).toBeDisabled()
+    })
+
+    it('shows TTS reset confirm popover on reset button', async () => {
+      const hidePopoverOrig = HTMLDivElement.prototype.hidePopover
+      HTMLDivElement.prototype.hidePopover = vi.fn()
+      const showPopoverOrig = HTMLDivElement.prototype.showPopover
+      HTMLDivElement.prototype.showPopover = vi.fn()
+      renderSettings({ settings: { ...baseSettings, enableTTS: true, ttsKey: 'some-key' } })
+      fireEvent.click(screen.getByText('Change TTS service key'))
+      fireEvent.click(screen.getByText('Reset key'))
+      expect(screen.getByText('Are you sure you want to reset the TTS key?')).toBeInTheDocument()
+      HTMLDivElement.prototype.hidePopover = hidePopoverOrig
+      HTMLDivElement.prototype.showPopover = showPopoverOrig
+    })
+
+    it('hides TTS key region when enableTTS is false', () => {
+      renderSettings({ settings: { ...baseSettings, enableTTS: false } })
+      expect(screen.queryByText('Add TTS service key')).not.toBeInTheDocument()
     })
   })
 
@@ -863,7 +922,8 @@ describe('Settings', () => {
       const onReset = vi.fn()
       renderSettings({ onReset })
       fireEvent.click(screen.getByText('Reset data'))
-      fireEvent.click(screen.getByText('Reset'))
+      const popover = document.getElementById('reset-confirm')!
+      fireEvent.click(within(popover).getByText('Reset'))
       expect(onReset).toHaveBeenCalledTimes(1)
     })
 

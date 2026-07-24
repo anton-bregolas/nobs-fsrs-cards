@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, forwardRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import type { Word, AppSettings, DictMeta } from '../types'
+import type { Word, AppSettings, DictMeta, TTSService } from '../types'
 import { useTranslation } from '../i18n'
+import { speakViaGoogle, speakViaAzure } from '../utils/tts'
 
 interface WordCardProps {
   word: Word
@@ -46,6 +47,46 @@ function firstText(v: string | string[] | number | null | undefined): string {
   return String(v)
 }
 
+function langToBCP47(code: string): string {
+  const map: Record<string, string> = {
+    rus: 'ru-RU',
+    srpCyrl: 'sr-RS',
+    srpLatn: 'sr-RS',
+    eng: 'en-US',
+  }
+  return map[code] ?? code
+}
+
+function findVoice(lang: string): SpeechSynthesisVoice | null {
+  const voices = window.speechSynthesis.getVoices()
+  const exact = voices.find(v => v.lang === lang)
+  if (exact) return exact
+  const prefix = lang.split('-')[0]
+  return voices.find(v => v.lang.startsWith(prefix)) ?? null
+}
+
+function speakText(text: string, lang: string, service: TTSService, key: string) {
+  if (!text) return
+  if (service === 'google' && key) {
+    speakViaGoogle(text, lang, key).catch(() => fallbackSpeak(text, lang))
+  } else if (service === 'azure' && key) {
+    speakViaAzure(text, lang, key).catch(() => fallbackSpeak(text, lang))
+  } else {
+    fallbackSpeak(text, lang)
+  }
+}
+
+function fallbackSpeak(text: string, lang: string) {
+  if (!window.speechSynthesis) return
+  window.speechSynthesis.cancel()
+  const u = new SpeechSynthesisUtterance(text)
+  u.lang = lang
+  u.rate = 0.9
+  const voice = findVoice(lang)
+  if (voice) u.voice = voice
+  window.speechSynthesis.speak(u)
+}
+
 const WordCard = forwardRef<HTMLDivElement, WordCardProps>(function WordCard({ word, dictMeta, isFlipped, onFlip, settings, flyAnim, onFlyDone, onSwipeNext, onSwipeFavorite, onSwipeLearned, matchPct }, ref) {
   const { t } = useTranslation()
   const perspectiveRef = useRef<HTMLDivElement>(null)
@@ -71,6 +112,8 @@ const WordCard = forwardRef<HTMLDivElement, WordCardProps>(function WordCard({ w
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const longPressedRef = useRef(false)
   const [copyNotification, setCopyNotification] = useState(false)
+  const [flipping, setFlipping] = useState(false)
+  const prevFlipped = useRef(isFlipped)
   const isFlippedRef = useRef(isFlipped)
   const COMMIT_DISTANCE = 150
   const [textVisible, setTextVisible] = useState(true)
@@ -88,6 +131,14 @@ const WordCard = forwardRef<HTMLDivElement, WordCardProps>(function WordCard({ w
 
   useEffect(() => { dragSettlingRef.current = dragSettling }, [dragSettling])
   useEffect(() => { isFlippedRef.current = isFlipped }, [isFlipped])
+
+  useEffect(() => {
+    if (prevFlipped.current === isFlipped) return
+    prevFlipped.current = isFlipped
+    setFlipping(true)
+    const t = setTimeout(() => setFlipping(false), 200)
+    return () => { clearTimeout(t); setFlipping(false) }
+  }, [isFlipped])
 
   useEffect(() => {
     if (prevWordId.current !== null && prevWordId.current !== word.id) {
@@ -489,6 +540,51 @@ const WordCard = forwardRef<HTMLDivElement, WordCardProps>(function WordCard({ w
     ? `https://sh.wiktionary.org/w/index.php?title=${encodeURIComponent(Array.isArray(wikiRef) ? wikiRef[0] : wikiRef)}`
     : null
 
+  const frontBaseLang = (isWordsType && !isPB)
+    ? (refLang ? dictMeta.langRef : dictMeta.langFrom)
+    : (isWordsType && isPB)
+      ? (refLang && dictMeta.langToAlt ? dictMeta.langToAlt : dictMeta.langTo)
+      : (!isWordsType && isPB)
+        ? (refLang ? dictMeta.langRef : dictMeta.langFrom)
+        : (refLang && dictMeta.langToAlt ? dictMeta.langToAlt : dictMeta.langTo)
+
+  let togglePrimaryLang = ''
+  let toggleAltLang = ''
+  if (isWordsType && isPB) {
+    if (refLang) {
+      togglePrimaryLang = hasToggle && dictMeta.langToAlt ? dictMeta.langToAlt : dictMeta.langTo
+      toggleAltLang = dictMeta.langTo
+    } else {
+      togglePrimaryLang = dictMeta.langTo
+      toggleAltLang = hasToggle && dictMeta.langToAlt ? dictMeta.langToAlt : ''
+    }
+  } else if (!isWordsType && isPB) {
+    if (refLang) {
+      togglePrimaryLang = hasToggle && dictMeta.langRef ? dictMeta.langRef : dictMeta.langFrom
+      toggleAltLang = dictMeta.langFrom
+    } else {
+      togglePrimaryLang = dictMeta.langFrom
+      toggleAltLang = hasToggle && dictMeta.langRef ? dictMeta.langRef : ''
+    }
+  } else {
+    togglePrimaryLang = hasToggle && dictMeta.langToAlt ? dictMeta.langToAlt : dictMeta.langTo
+    toggleAltLang = dictMeta.langTo
+  }
+
+  const questionLangCode = !isFlipped || subheadMode === 'both'
+    ? frontBaseLang
+    : showAltOnBack ? toggleAltLang : togglePrimaryLang
+
+  const answerLangCode = isDefaultForType
+    ? (useAlt && dictMeta.langToAlt ? dictMeta.langToAlt : dictMeta.langTo)
+    : (useAlt && dictMeta.langRef ? dictMeta.langRef : dictMeta.langFrom)
+
+  const questionText = isFlipped
+    ? (subheadMode === 'both' ? subheadPrimary : (showAltOnBack ? toggleAlt : togglePrimary))
+    : frontPrimary
+
+  const answerText = backTranslations.join(', ')
+
   const handleAltToggle = (e: React.MouseEvent) => {
     e.stopPropagation()
     if (hasToggle) setShowAltOnBack(prev => !prev)
@@ -776,40 +872,69 @@ const WordCard = forwardRef<HTMLDivElement, WordCardProps>(function WordCard({ w
           </div>
         )}
 
-        {hasToggle && (
+        <div data-card-ui="hovercontainer">
           <button
             onClick={handleAltToggle}
             onKeyDown={(e) => e.stopPropagation()}
-            tabIndex={isFlipped && subheadMode === 'toggle' ? 0 : -1}
-            aria-hidden={!(isFlipped && subheadMode === 'toggle')}
+            tabIndex={isFlipped && subheadMode === 'toggle' && hasToggle ? 0 : -1}
+            aria-hidden={!(isFlipped && subheadMode === 'toggle' && hasToggle)}
             className={`${
-              isFlipped && subheadMode === 'toggle'
+              isFlipped && subheadMode === 'toggle' && hasToggle
                 ? 'opacity-30 focus:opacity-75 focus-visible:opacity-75 hover:opacity-75'
                 : 'opacity-0 pointer-events-none'
             }`}
             style={{
-              position: 'absolute',
-              left: '50%',
-              transform: 'translate(-50%, 50%)',
-              top: '1%',
-              border: '0.12rem solid var(--color-text)',
-              width: '2.4rem',
-              height: '2.4rem',
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              borderRadius: '50%',
-              cursor: 'pointer',
-              transition: isFlipped && subheadMode === 'toggle'
-                ? 'opacity 500ms ease-in-out'
+              transition: isFlipped && subheadMode === 'toggle' && hasToggle
+                ? 'opacity 500ms ease-in-out 200ms'
                 : 'opacity 200ms ease-in-out',
             }}
             aria-label={t('card.showAlt')}
             title={t('card.showAlt')}
+            data-card-ui="hoverbtn"
           >
             <i className="bi bi-translate text-lg" />
           </button>
-        )}
+          {settings.enableTTS && <>
+            <button
+              onClick={(e) => { e.stopPropagation(); speakText(questionText, langToBCP47(questionLangCode), settings.ttsService, settings.ttsKey) }}
+              className={`${
+                flipping
+                  ? 'opacity-0 pointer-events-none'
+                  : 'opacity-30 focus:opacity-75 focus-visible:opacity-75 hover:opacity-75'
+              }`}
+              style={{
+                transition: flipping
+                  ? 'opacity 200ms ease-in-out'
+                  : 'opacity 500ms ease-in-out',
+              }}
+              data-card-ui="hoverbtn"
+              aria-label={t('card.playQuestion')}
+              title={t('card.playQuestion')}
+            >
+              <i className="bi bi-volume-down text-3xl" />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); speakText(answerText, langToBCP47(answerLangCode), settings.ttsService, settings.ttsKey) }}
+              tabIndex={-1}
+              aria-hidden={!isFlipped}
+              className={`${
+                isFlipped
+                  ? 'opacity-30 focus:opacity-75 focus-visible:opacity-75 hover:opacity-75'
+                  : 'opacity-0 pointer-events-none'
+              }`}
+              style={{
+                transition: isFlipped
+                  ? 'opacity 500ms ease-in-out 200ms'
+                  : 'opacity 200ms ease-in-out',
+              }}
+              data-card-ui="hoverbtn"
+              aria-label={t('card.playAnswer')}
+              title={t('card.playAnswer')}
+            >
+              <i className="bi bi-headphones text-2xl" />
+            </button>
+          </>}
+        </div>
       </div>
     </div>
     {createPortal(
